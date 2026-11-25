@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Tandem Notes security rules.
+// Every document lives under /users/{uid}; only the signed-in owner
+// (anonymous or Google) can read or write their own data.
+// Private notes are never written here: they stay in the browser.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid}/notes/{noteId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['title', 'body', 'tags', 'createdAt', 'updatedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 200000
+        && request.resource.data.tags is list
+        && request.resource.data.tags.size() <= 10
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    // Inference ledger: one entry per AI request (metadata only, never note text).
+    match /users/{uid}/events/{eventId} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['task', 'source', 'mode', 'reason', 'latencyMs', 'chars', 'redactions', 'offline', 'at'])
+        && request.resource.data.source in ['on_device', 'in_cloud']
+        && request.resource.data.latencyMs is number
+        && request.resource.data.chars is number
+        && request.resource.data.redactions is number
+        && request.resource.data.at is timestamp;
+      allow update: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

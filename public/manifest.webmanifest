@@ -1,0 +1,12 @@
+{
+  "name": "Tandem Notes",
+  "short_name": "Tandem",
+  "description": "Private-first AI notebook: on-device Gemini Nano with cloud fallback via Firebase AI Logic.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#f7f7f5",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

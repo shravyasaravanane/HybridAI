@@ -1,0 +1,24 @@
+{
+  "name": "tandem-notes",
+  "version": "1.0.0",
+  "description": "Tandem Notes: a private-first AI notebook. Gemini Nano runs on-device in Chrome; Firebase AI Logic hybrid inference falls back to Gemini in the cloud, with an on-device Privacy Shield that redacts personal data before anything leaves the device.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "npm run build && firebase deploy"
+  },
+  "dependencies": {
+    "firebase": "^13.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
