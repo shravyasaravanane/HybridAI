@@ -21,6 +21,8 @@ export interface RouteInput {
   privateNote: boolean;
   /** Remote Config: redact personal data before cloud calls. */
   privacyShieldEnabled: boolean;
+  /** Remote Config kill-switch. When false, every request must run on-device. Defaults to true. */
+  cloudEnabled?: boolean;
 }
 
 export interface RouteDecision {
@@ -68,6 +70,7 @@ export function route(input: RouteInput): RouteDecision {
   if (privateNote) return onlyDevice('Device-only note: stays on this device');
   if (routing === 'local') return onlyDevice('Local-only mode');
   if (!online) return onlyDevice('Offline: using on-device Gemini Nano');
+  if (input.cloudEnabled === false) return onlyDevice('Cloud AI is paused by the admin (Remote Config)');
 
   if (routing === 'cloud') {
     return {

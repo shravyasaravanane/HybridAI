@@ -1,34 +1,60 @@
 {
   "parameters": {
     "cloud_model": {
-      "defaultValue": { "value": "gemini-3.5-flash-lite" },
+      "defaultValue": {
+        "value": "gemini-3.5-flash-lite"
+      },
       "description": "Gemini model used by Firebase AI Logic when a request runs in the cloud.",
       "valueType": "STRING"
     },
     "on_device_max_chars": {
-      "defaultValue": { "value": "12000" },
+      "defaultValue": {
+        "value": "12000"
+      },
       "description": "Notes longer than this go straight to the cloud model (Gemini Nano has a ~9k token window).",
       "valueType": "NUMBER"
     },
     "privacy_shield_enabled": {
-      "defaultValue": { "value": "true" },
+      "defaultValue": {
+        "value": "true"
+      },
       "description": "Redact personal data on-device before any text is sent to the cloud model.",
       "valueType": "BOOLEAN"
     },
     "shield_max_chunks": {
-      "defaultValue": { "value": "4" },
+      "defaultValue": {
+        "value": "4"
+      },
       "description": "Max ~8k-char chunks scanned by on-device entity detection (regex covers the rest).",
       "valueType": "NUMBER"
     },
     "default_routing": {
-      "defaultValue": { "value": "auto" },
+      "defaultValue": {
+        "value": "auto"
+      },
       "description": "Default routing for new users: auto | local | cloud.",
       "valueType": "STRING"
     },
     "announcement": {
-      "defaultValue": { "value": "" },
+      "defaultValue": {
+        "value": ""
+      },
       "description": "Optional banner text shown at the top of the app.",
       "valueType": "STRING"
+    },
+    "cloud_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "Kill-switch. Set to false to pause every cloud Gemini call (cost, quota or incident); the app keeps working on-device.",
+      "valueType": "BOOLEAN"
+    },
+    "prompt_templates": {
+      "defaultValue": {
+        "value": "{}"
+      },
+      "description": "Optional JSON map of task id (summarize, actions, tags, rewrite, ask) to instruction text. Supports {tone} and {question}. The note text and privacy placeholder rule are always appended by the app.",
+      "valueType": "JSON"
     }
   }
 }

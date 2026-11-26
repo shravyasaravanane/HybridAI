@@ -24,6 +24,7 @@ import {
   type RemoteConfig,
 } from 'firebase/remote-config';
 import { getAI, GoogleAIBackend, type AI } from 'firebase/ai';
+import { parseTemplates, type PromptTemplates } from './ai/tasks';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -54,6 +55,8 @@ export const RC_DEFAULTS = {
   shield_max_chunks: 4,
   default_routing: 'auto',
   announcement: '',
+  cloud_enabled: true,
+  prompt_templates: '{}',
 } as const;
 
 export interface AppConfig {
@@ -63,6 +66,9 @@ export interface AppConfig {
   shieldMaxChunks: number;
   defaultRouting: 'auto' | 'local' | 'cloud';
   announcement: string;
+  /** Kill-switch: false pauses every cloud call; the app keeps working on-device. */
+  cloudEnabled: boolean;
+  promptTemplates: PromptTemplates;
 }
 
 export interface FirebaseServices {
@@ -146,5 +152,7 @@ export function readAppConfig(rc: RemoteConfig): AppConfig {
     shieldMaxChunks: getValue(rc, 'shield_max_chunks').asNumber() || RC_DEFAULTS.shield_max_chunks,
     defaultRouting: routing === 'local' || routing === 'cloud' ? routing : 'auto',
     announcement: getValue(rc, 'announcement').asString(),
+    cloudEnabled: getValue(rc, 'cloud_enabled').asBoolean(),
+    promptTemplates: parseTemplates(getValue(rc, 'prompt_templates').asString()),
   };
 }

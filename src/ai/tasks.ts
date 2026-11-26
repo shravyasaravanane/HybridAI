@@ -25,8 +25,12 @@ export interface TaskDef {
   hint: string;
   structured: boolean;
   schema?: object;
-  build(args: TaskArgs): string;
+  /** Default instruction lines; Remote Config `prompt_templates` can override them. */
+  instructions(args: TaskArgs): string[];
 }
+
+/** Per-task instruction overrides from Remote Config. Supports {tone} and {question}. */
+export type PromptTemplates = Partial<Record<TaskId, string>>;
 
 export interface ActionItem {
   task: string;
@@ -96,11 +100,10 @@ export const TASKS: Record<TaskId, TaskDef> = {
     label: 'Summarize',
     hint: '3-5 bullet TL;DR',
     structured: false,
-    build: (a) =>
-      wrap(a, [
-        'Summarize the note below as 3 to 5 short Markdown bullet points ("- ").',
-        'Lead with the single most important point. Use only facts from the note. Output only the bullets.',
-      ]),
+    instructions: () => [
+      'Summarize the note below as 3 to 5 short Markdown bullet points ("- ").',
+      'Lead with the single most important point. Use only facts from the note. Output only the bullets.',
+    ],
   },
   actions: {
     id: 'actions',
@@ -108,12 +111,11 @@ export const TASKS: Record<TaskId, TaskDef> = {
     hint: 'Extract to-dos as a checklist',
     structured: true,
     schema: ACTIONS_SCHEMA,
-    build: (a) =>
-      wrap(a, [
-        'Extract every concrete action item, task or follow-up from the note below.',
-        'For each, give a short imperative "task"; include "owner" and "due" only if the note states them.',
-        'If there are no action items, return an empty list.',
-      ]),
+    instructions: () => [
+      'Extract every concrete action item, task or follow-up from the note below.',
+      'For each, give a short imperative "task"; include "owner" and "due" only if the note states them.',
+      'If there are no action items, return an empty list.',
+    ],
   },
   tags: {
     id: 'tags',
@@ -121,35 +123,67 @@ export const TASKS: Record<TaskId, TaskDef> = {
     hint: 'Auto-title and 3-5 tags',
     structured: true,
     schema: TAGS_SCHEMA,
-    build: (a) =>
-      wrap(a, [
-        'Propose a specific title for the note below (max 8 words) and 3 to 5 lowercase topic tags (one or two words each, no "#").',
-      ]),
+    instructions: () => [
+      'Propose a specific title for the note below (max 8 words) and 3 to 5 lowercase topic tags (one or two words each, no "#").',
+    ],
   },
   rewrite: {
     id: 'rewrite',
     label: 'Rewrite',
     hint: 'Polish the note in a chosen tone',
     structured: false,
-    build: (a) =>
-      wrap(a, [
-        `Rewrite the note below to be ${TONE_TEXT[a.tone ?? 'clearer']}.`,
-        'Keep the same language, facts, names and Markdown structure. Output only the rewritten note, with no preamble.',
-      ]),
+    instructions: (a) => [
+      `Rewrite the note below to be ${TONE_TEXT[a.tone ?? 'clearer']}.`,
+      'Keep the same language, facts, names and Markdown structure. Output only the rewritten note, with no preamble.',
+    ],
   },
   ask: {
     id: 'ask',
     label: 'Ask the note',
     hint: 'Q&A grounded in this note',
     structured: false,
-    build: (a) =>
-      wrap(a, [
-        'Answer the QUESTION using only information in the note below. Be brief (at most 4 sentences).',
-        'If the note does not contain the answer, say "The note doesn\'t say." and nothing else.',
-        `QUESTION: ${a.question ?? ''}`,
-      ]),
+    instructions: (a) => [
+      'Answer the QUESTION using only information in the note below. Be brief (at most 4 sentences).',
+      'If the note does not contain the answer, say "The note doesn\'t say." and nothing else.',
+      `QUESTION: ${a.question ?? ''}`,
+    ],
   },
 };
+
+/**
+ * Builds the full prompt for a task. A Remote Config template replaces only the
+ * instruction lines; the note itself and the placeholder rule are always added
+ * by wrap(), so a bad template can never drop the note or break redaction.
+ */
+export function buildPrompt(task: TaskId, args: TaskArgs, templates?: PromptTemplates): string {
+  const tpl = templates?.[task]?.trim();
+  if (!tpl) return wrap(args, TASKS[task].instructions(args));
+  const lines = tpl
+    .replace(/\{tone\}/g, TONE_TEXT[args.tone ?? 'clearer'])
+    .replace(/\{question\}/g, args.question ?? '')
+    .split('\n');
+  if (task === 'ask' && !tpl.includes('{question}')) lines.push(`QUESTION: ${args.question ?? ''}`);
+  return wrap(args, lines);
+}
+
+const MAX_TEMPLATE_CHARS = 2000;
+
+/** Parses the `prompt_templates` Remote Config JSON. Invalid input is ignored, never fatal. */
+export function parseTemplates(raw: string | undefined): PromptTemplates {
+  if (!raw?.trim()) return {};
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const out: PromptTemplates = {};
+    for (const id of Object.keys(TASKS) as TaskId[]) {
+      const v = obj?.[id];
+      if (typeof v === 'string' && v.trim() && v.length <= MAX_TEMPLATE_CHARS) out[id] = v;
+    }
+    return out;
+  } catch {
+    console.warn('[remote-config] prompt_templates is not valid JSON; using built-in prompts');
+    return {};
+  }
+}
 
 /** Parses model JSON defensively (models occasionally wrap JSON in code fences). */
 export function parseJson<T>(text: string): T | null {

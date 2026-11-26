@@ -5,6 +5,7 @@ import { initFirebase, isConfigured, loadAppConfig, RC_DEFAULTS, type AppConfig,
 import { route, fmt, type DeviceStatus, type Routing, type RouteDecision } from './ai/router';
 import { describeDevice, downloadDeviceModel, probeDevice } from './ai/device';
 import { friendlyError, HybridEngine, type RunResult, type Source } from './ai/engine';
+import { attemptChain, type Attempt, type ChainContext } from './ai/fallback';
 import { TASKS, type ActionItem, type TagsResult, type TaskId, type Tone } from './ai/tasks';
 import { NoteStore, type Note } from './data/notes';
 import { computeStats, Ledger, type LedgerEvent } from './data/ledger';
@@ -64,6 +65,8 @@ const state: State = {
     shieldMaxChunks: RC_DEFAULTS.shield_max_chunks,
     defaultRouting: 'auto',
     announcement: '',
+    cloudEnabled: RC_DEFAULTS.cloud_enabled,
+    promptTemplates: {},
   },
   busy: false,
   runs: [],
@@ -324,7 +327,10 @@ function renderHeader(): void {
 }
 
 function renderBanner(): void {
-  const text = state.config.announcement;
+  const text = [
+    !state.config.cloudEnabled && 'Cloud AI is paused by the admin (Remote Config kill-switch). Everything runs on-device with Gemini Nano.',
+    state.config.announcement,
+  ].filter(Boolean).join(' · ');
   el.banner.hidden = !text;
   el.banner.textContent = text;
 }
@@ -593,14 +599,33 @@ function decide(chars: number, note: Note | undefined): RouteDecision {
     maxOnDeviceChars: state.config.onDeviceMaxChars,
     privateNote: Boolean(note?.private),
     privacyShieldEnabled: state.config.privacyShieldEnabled,
+    cloudEnabled: state.config.cloudEnabled,
   });
+}
+
+function chainContext(chars: number): ChainContext {
+  return {
+    deviceReady: state.device === 'available',
+    online: state.online,
+    cloudEnabled: state.config.cloudEnabled,
+    fitsOnDevice: chars <= state.config.onDeviceMaxChars,
+    privacyShieldEnabled: state.config.privacyShieldEnabled,
+  };
+}
+
+/** e.g. "Gemini Nano → Cloud fallback (shielded)" */
+function describePlan(attempts: Attempt[]): string {
+  return attempts.map((a) => `${a.label}${a.shield ? ' (shielded)' : ''}`).join(' → ');
 }
 
 function renderRoute(): void {
   if (!el.route) return;
   const note = current();
   const { body, scope } = workingText();
-  const d = decide(body.length + (note?.title.length ?? 0), note);
+  const chars = body.length + (note?.title.length ?? 0);
+  const d = decide(chars, note);
+  const plan = attemptChain(d, chainContext(chars));
+  const mayReachCloud = plan.some((a) => a.mode !== InferenceMode.ONLY_ON_DEVICE);
   el.route.className = `route-card ${d.blocked ? 'is-blocked' : ''}`;
   el.route.replaceChildren(h('div', {},
     h('div', { class: 'route-label' }, 'Next request will run'),
@@ -608,12 +633,15 @@ function renderRoute(): void {
       d.blocked ? h('span', { class: 'badge badge-blocked' }, 'Blocked') : sourceBadge(d.expected, true),
       h('code', { class: 'mode', title: 'Firebase AI Logic InferenceMode' }, modeName(d.mode))),
     h('p', { class: 'route-reason' }, d.blocked ?? d.reason),
-    !d.blocked && d.expected === 'in_cloud' && h('p', { class: 'route-shield' }, shieldIcon(),
-      d.shield
-        ? state.device === 'available'
-          ? 'Privacy Shield on: Gemini Nano and pattern rules redact personal data before upload.'
-          : 'Privacy Shield on: pattern rules redact emails, phones, cards & IDs before upload.'
-        : 'Privacy Shield is disabled by Remote Config.'),
+    plan.length > 0 && h('p', { class: 'route-plan small' }, h('strong', {}, 'Plan: '), describePlan(plan)),
+    !d.blocked && h('p', { class: 'route-shield' }, shieldIcon(),
+      !mayReachCloud
+        ? 'Privacy: this request cannot leave the device.'
+        : !state.config.privacyShieldEnabled
+          ? 'Privacy Shield is disabled by Remote Config.'
+          : state.device === 'available'
+            ? 'Privacy: before any cloud attempt, Gemini Nano and pattern rules redact personal data.'
+            : 'Privacy: before any cloud attempt, pattern rules redact emails, phones, cards & IDs.'),
     scope === 'selection' && h('p', { class: 'small muted' }, 'Using your text selection only.'),
   ));
   renderActions();
@@ -686,6 +714,7 @@ async function runCompare(): Promise<void> {
   if (!body.trim()) return toast('Write something first.');
   if (note.private) return toast('Device-only notes never go to the cloud, so there is nothing to compare.');
   if (!state.online) return toast('You are offline: the cloud side of the comparison is unavailable.');
+  if (!state.config.cloudEnabled) return toast('Cloud AI is paused by the admin (Remote Config), so there is nothing to compare.');
   if (state.device !== 'available') return toast('Compare needs Gemini Nano on this device. Click "Get Gemini Nano" first.');
   if (body.length > state.config.onDeviceMaxChars) return toast('This text is too long for Gemini Nano. Select a shorter passage to compare.');
 
@@ -703,12 +732,21 @@ async function runCompare(): Promise<void> {
   renderActions();
   renderOutput();
   const args = { title: note.title, body };
-  await Promise.all([execute(0, 'summarize', local, args), execute(1, 'summarize', cloud, args)]);
+  // Compare runs exactly one attempt per side (no fallback), so each card shows a pure result.
+  const localOnly: Attempt[] = [{ mode: InferenceMode.ONLY_ON_DEVICE, expected: 'on_device', shield: false, retry: false, label: 'Gemini Nano' }];
+  const cloudOnly: Attempt[] = [{ mode: InferenceMode.ONLY_IN_CLOUD, expected: 'in_cloud', shield: state.config.privacyShieldEnabled, retry: true, label: 'Cloud' }];
+  await Promise.all([execute(0, 'summarize', local, args, localOnly), execute(1, 'summarize', cloud, args, cloudOnly)]);
   state.busy = false;
   renderActions();
 }
 
-async function execute(i: number, task: TaskId, decision: RouteDecision, args: { title: string; body: string; question?: string; tone?: Tone }): Promise<void> {
+async function execute(
+  i: number,
+  task: TaskId,
+  decision: RouteDecision,
+  args: { title: string; body: string; question?: string; tone?: Tone },
+  attempts?: Attempt[],
+): Promise<void> {
   const view = state.runs[i];
   let frame = 0;
   try {
@@ -716,7 +754,8 @@ async function execute(i: number, task: TaskId, decision: RouteDecision, args: {
       task,
       args,
       decision,
-      deviceReady: state.device === 'available',
+      attempts,
+      context: chainContext(args.body.length + args.title.length),
       onStage: (s) => { view.stage = s; renderOutput(); },
       onText: (text, source) => {
         view.text = text;
@@ -731,8 +770,10 @@ async function execute(i: number, task: TaskId, decision: RouteDecision, args: {
     ledger?.log({
       task,
       source: result.source,
-      mode: decision.mode,
-      reason: decision.reason,
+      mode: result.mode,
+      reason: result.fellBack
+        ? `${decision.reason}; fell back after ${result.attempts.filter((a) => !a.ok).map((a) => a.label).join(', ')} failed`
+        : decision.reason,
       latencyMs: result.latencyMs,
       chars: args.body.length,
       redactions: result.redaction?.entities.reduce((s, e) => s + e.count, 0) ?? 0,
@@ -789,13 +830,25 @@ function renderRun(v: RunView): HTMLElement {
   }
 
   const parts: HTMLElement[] = [header];
-  if (r?.redaction && r.redaction.entities.length) {
+  if (!r && v.text && v.stage) parts.push(h('div', { class: 'shield-chip' }, v.stage));
+  if (r?.fellBack) {
+    const failed = r.attempts.filter((a) => !a.ok);
+    parts.push(h('div', { class: 'fallback-chip' }, '↪ ',
+      `Fell back: ${failed.map((a) => `${a.label} failed (${a.error ?? 'error'})`).join('; ')}. Answered by ${r.attempts[r.attempts.length - 1].label}.`));
+  }
+  const retries = r?.attempts.reduce((s, a) => s + a.retries, 0) ?? 0;
+  if (retries) parts.push(h('div', { class: 'fallback-chip' }, `Recovered after ${retries} automatic retr${retries > 1 ? 'ies' : 'y'}.`));
+  if (r?.source === 'on_device') {
+    parts.push(h('div', { class: 'shield-chip' }, shieldIcon(), 'Privacy: processed by Gemini Nano on this device. Nothing was uploaded.'));
+  } else if (r?.redaction && r.redaction.entities.length) {
     const ents = r.redaction.entities;
     parts.push(h('div', { class: 'shield-chip' }, shieldIcon(),
       `Privacy Shield redacted ${ents.reduce((s, e) => s + e.count, 0)} item(s) before upload: `,
       summarizeTypes(ents.map((e) => e.type))));
-  } else if (r?.decision.shield && r.source === 'in_cloud') {
+  } else if (r?.redaction) {
     parts.push(h('div', { class: 'shield-chip' }, shieldIcon(), 'Privacy Shield found no personal data to redact.'));
+  } else if (r?.source === 'in_cloud') {
+    parts.push(h('div', { class: 'shield-chip' }, shieldIcon(), 'Sent to the cloud without redaction (Privacy Shield disabled by Remote Config).'));
   }
   parts.push(body);
   if (r && !v.error) parts.push(renderRunFooter(v, r));
@@ -818,7 +871,7 @@ function renderRunFooter(v: RunView, r: RunResult): HTMLElement {
     r.source === 'on_device'
       ? h('p', { class: 'small muted' }, 'This request ran on Gemini Nano inside Chrome. No text was sent to any server.')
       : h('div', {},
-          h('p', { class: 'small muted' }, `Exact prompt sent to ${state.config.cloudModel} via Firebase AI Logic (${modeName(r.decision.mode)}). Reason: ${r.decision.reason}.`),
+          h('p', { class: 'small muted' }, `Exact prompt sent to ${state.config.cloudModel} via Firebase AI Logic (${modeName(r.mode)}). Reason: ${r.decision.reason}.`),
           h('pre', { class: 'prompt' }, r.sentPrompt)),
   );
   return h('div', { class: 'run-foot' }, h('div', { class: 'row gap-s wrap' }, ...btns), sent);

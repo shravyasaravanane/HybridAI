@@ -338,3 +338,10 @@ code, pre { font-family: var(--mono); }
   .drawer { padding: 16px; }
   .toast { bottom: 72px; }
 }
+
+/* ---------- fallback / plan ---------- */
+.route-plan { margin: 6px 0 0; color: var(--ink-2); }
+.fallback-chip {
+  padding: 8px 14px; font-size: 12px; color: var(--ink); border-bottom: 1px solid var(--border);
+  background: var(--cloud-soft);
+}

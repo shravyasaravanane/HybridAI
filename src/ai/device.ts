@@ -44,7 +44,7 @@ export async function probeDevice(): Promise<DeviceStatus> {
  * Resolves once the model reports "available" (or rejects on failure).
  */
 export async function downloadDeviceModel(
-  model: GenerativeModel,
+  model: Pick<GenerativeModel, 'initializeDeviceModel'>,
   onProgress: (fraction: number) => void,
 ): Promise<DeviceStatus> {
   await model.initializeDeviceModel((p) => onProgress(p));
