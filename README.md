@@ -205,3 +205,22 @@ Firebase AI Logic (hybrid inference: Gemini Nano + Gemini Developer API) · App 
 
 ## License
 [Apache License 2.0](LICENSE). Free and open source.
+## Performance: on-device vs cloud
+
+| Path | Runs | Median | Range | Mean |
+|---|---|---|---|---|
+| On-device (Gemini Nano) | 7 | **14.1 s** | 12.4 to 15.1 s | 13.9 s |
+| Cloud (gemini-3.5-flash-lite) | 7 | **21.8 s** | 16.8 to 24.4 s | 21.7 s |
+
+On-device was about 1.5x faster at the median and more consistent.
+
+Measured on [laptop model, CPU, RAM, GPU], Chrome [version], same note, online,
+n=7 paired runs. The cloud path includes the on-device Privacy Shield pass that
+redacts sensitive details before upload, so cloud time = redaction + network +
+model. Results will vary by hardware and network.
+
+## Privacy results
+
+- 9 requests ran fully on-device, so 8,757 characters never left the device.
+- The Privacy Shield redacted 6 items before cloud calls.
+- Device-only notes are never synced to Firestore.
