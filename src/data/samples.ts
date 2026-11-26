@@ -3,6 +3,22 @@ import type { Note } from './notes';
 
 export const SAMPLE_NOTES: Partial<Note>[] = [
   {
+    title: 'Lecture 7: CPU scheduling (try it offline)',
+    tags: ['os', 'lecture'],
+    body: `OS lecture, week 7. Prof said this is on the midterm.
+
+- Scheduler picks which ready process runs next. Goals: CPU utilisation, throughput, turnaround, waiting time, response time.
+- FCFS: simple, but the convoy effect means short jobs wait behind long ones.
+- SJF: optimal average waiting time, but needs to know burst length (estimate with exponential averaging).
+- Round Robin: time quantum q. Too large q behaves like FCFS; too small q means lots of context-switch overhead. Rule of thumb: 80% of bursts shorter than q.
+- Priority scheduling can starve low-priority jobs, fixed by aging.
+- Multilevel feedback queue: processes move between queues based on behaviour; this is what real OSes approximate.
+
+TODO: redo problem set 4 Q2 (Gantt chart for RR with q=4) before Thursday's lab. Ask the TA about preemptive SJF in office hours.
+
+Tip: turn on the offline demo (click "Online" in the header) and press Summarize or Action items: Gemini Nano answers with no network.`,
+  },
+  {
     title: 'Client call: Priya Sharma (try Privacy Shield)',
     tags: ['demo', 'clients'],
     body: `Call with Priya Sharma from Lakeview Dental Clinic, 24 Nov.

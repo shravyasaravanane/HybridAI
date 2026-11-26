@@ -122,7 +122,10 @@ export function initFirebase(): FirebaseServices {
 
   // --- Remote Config: tune routing without redeploying -------------------
   const remoteConfig = getRemoteConfig(app);
-  remoteConfig.settings.minimumFetchIntervalMillis = env.DEV ? 60_000 : 60 * 60 * 1000;
+  // 5 minutes keeps kill-switch / threshold changes responsive for a small app.
+  // `?rcfresh` in the URL forces an immediate fetch (handy for demos right after publishing).
+  const forceFresh = new URLSearchParams(location.search).has('rcfresh');
+  remoteConfig.settings.minimumFetchIntervalMillis = forceFresh ? 0 : env.DEV ? 60_000 : 5 * 60 * 1000;
   remoteConfig.settings.fetchTimeoutMillis = 8_000;
   remoteConfig.defaultConfig = { ...RC_DEFAULTS };
 
