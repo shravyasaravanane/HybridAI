@@ -37,6 +37,16 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Synced preferences (routing mode). Never note content.
+    match /users/{uid}/settings/{docId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && docId == 'app'
+        && request.resource.data.keys().hasOnly(['routing', 'updatedAt'])
+        && request.resource.data.routing in ['auto', 'local', 'cloud']
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

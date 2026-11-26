@@ -1,10 +1,21 @@
 /* Tandem Notes service worker: keeps the app shell available offline so
-   on-device AI (Gemini Nano) and Firestore's offline cache keep working. */
-const CACHE = 'tandem-shell-v1';
+   on-device AI (Gemini Nano) and Firestore's offline cache keep working,
+   even in airplane mode right after the very first visit. */
+const CACHE = 'tandem-shell-v2';
 const SHELL = ['/', '/index.html', '/icon.svg', '/manifest.webmanifest'];
 
+// The hashed JS/CSS bundles are referenced from index.html; read them from there
+// at install time so they are cached before the first offline reload.
+async function precache() {
+  const cache = await caches.open(CACHE);
+  await cache.addAll(SHELL);
+  const html = await (await cache.match('/index.html')).text();
+  const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+  if (assets.length) await cache.addAll(assets);
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {

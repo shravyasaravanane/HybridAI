@@ -11,6 +11,9 @@ import { NoteStore, type Note } from './data/notes';
 import { computeStats, Ledger, type LedgerEvent } from './data/ledger';
 import { signInWithGoogle, signOutUser, watchUser } from './data/auth';
 import { SAMPLE_NOTES } from './data/samples';
+import { saveSettings, watchSettings } from './data/settings';
+import { renderOnboarding } from './ui/onboarding';
+import { disableNetwork, enableNetwork } from 'firebase/firestore';
 import { h, renderMarkdown, timeAgo } from './ui/dom';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +37,8 @@ interface State {
   search: string;
   routing: Routing;
   online: boolean;
+  /** Offline demo: simulated airplane mode (cloud AI + Firestore network paused). */
+  simOffline: boolean;
   device: DeviceStatus;
   downloadProgress: number | null;
   config: AppConfig;
@@ -56,6 +61,7 @@ const state: State = {
   search: '',
   routing: (readPref(ROUTING_KEY) as Routing | null) ?? 'auto',
   online: navigator.onLine,
+  simOffline: false,
   device: 'unknown',
   downloadProgress: null,
   config: {
@@ -79,6 +85,8 @@ const state: State = {
   pane: 'editor',
 };
 
+const ONBOARDED_KEY = 'tandem.onboarded';
+let settingsUnsub: (() => void) | undefined;
 let fb: FirebaseServices;
 let engine: HybridEngine;
 let store: NoteStore | null = null;
@@ -104,8 +112,9 @@ async function boot(): Promise<void> {
   engine = new HybridEngine(fb.ai, () => state.config);
   buildShell();
 
-  window.addEventListener('online', () => setOnline(true));
-  window.addEventListener('offline', () => setOnline(false));
+  window.addEventListener('online', () => syncOnline());
+  window.addEventListener('offline', () => syncOnline());
+  if (!readPref(ONBOARDED_KEY)) openOnboarding();
 
   // Remote Config (non-blocking: defaults are already in place)
   loadAppConfig(fb.remoteConfig).then((cfg) => {
@@ -135,6 +144,16 @@ function onUser(user: User): void {
 
   store?.stop();
   ledger?.stop();
+  settingsUnsub?.();
+  // Routing preference follows the user across devices (Firestore), local value as fallback.
+  settingsUnsub = watchSettings(fb.db, user.uid, (s) => {
+    if (s.routing && s.routing !== state.routing) {
+      state.routing = s.routing;
+      writePref(ROUTING_KEY, s.routing);
+      renderHeader();
+      renderRoute();
+    }
+  });
   state.notes = [];
   state.currentId = null;
   state.events = [];
@@ -180,15 +199,55 @@ async function refreshDevice(): Promise<void> {
     renderHeader();
     renderRoute();
     renderMeta();
+    if (el.onboarding && !el.onboarding.hidden) openOnboarding(); // refresh its live status line
   }
 }
 
-function setOnline(v: boolean): void {
+/**
+ * Effective connectivity = the browser's real status AND not in the simulated
+ * offline demo. The demo also disables Firestore's network, so writes queue
+ * exactly as they would in airplane mode.
+ */
+function syncOnline(announce = true): void {
+  const v = navigator.onLine && !state.simOffline;
+  if (v === state.online) return renderHeader();
   state.online = v;
   renderHeader();
   renderRoute();
   renderMeta();
-  toast(v ? 'Back online: cloud model available again.' : 'Offline: notes and Gemini Nano keep working on this device.');
+  if (announce) {
+    toast(v ? 'Back online: cloud model and sync available again.'
+      : state.simOffline ? 'Offline demo: cloud AI and sync paused. Gemini Nano and your notes keep working.'
+        : 'Offline: notes and Gemini Nano keep working on this device.');
+  }
+}
+
+async function setSimulatedOffline(on: boolean): Promise<void> {
+  state.simOffline = on;
+  try {
+    await (on ? disableNetwork(fb.db) : enableNetwork(fb.db));
+  } catch (err) {
+    console.warn('[offline-demo] could not toggle Firestore network', err);
+  }
+  syncOnline();
+}
+
+function openOnboarding(): void {
+  const close = () => {
+    writePref(ONBOARDED_KEY, '1');
+    el.onboarding.replaceChildren();
+    el.onboarding.hidden = true;
+  };
+  el.onboarding.replaceChildren(renderOnboarding({
+    device: state.device,
+    cloudModel: state.config.cloudModel,
+    maxChars: state.config.onDeviceMaxChars,
+    onDownload: () => { close(); void onDownload(); },
+    onTryOffline: () => { close(); void setSimulatedOffline(true); },
+    onClose: close,
+  }));
+  el.onboarding.hidden = false;
+  el.onboarding.querySelector<HTMLButtonElement>('.btn-primary')?.focus();
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +266,7 @@ const el = {} as {
   output: HTMLElement;
   insights: HTMLElement;
   toast: HTMLElement;
+  onboarding: HTMLElement;
   tabs: HTMLElement;
   title?: HTMLInputElement;
   body?: HTMLTextAreaElement;
@@ -225,6 +285,7 @@ function buildShell(): void {
   el.output = h('div', { class: 'output' });
   el.insights = h('div', { class: 'drawer-backdrop', hidden: true });
   el.toast = h('div', { class: 'toast', role: 'status', hidden: true });
+  el.onboarding = h('div', { hidden: true });
   el.tabs = h('nav', { class: 'mobile-tabs' });
 
   const fileInput = h('input', { type: 'file', accept: '.txt,.md,.markdown,text/plain,text/markdown', hidden: true, onchange: onImport });
@@ -256,7 +317,7 @@ function buildShell(): void {
   );
 
   el.main = h('main', { class: 'layout', 'data-pane': state.pane }, sidebar, editor, ai);
-  root.replaceChildren(el.header, el.banner, el.main, el.tabs, el.insights, el.toast);
+  root.replaceChildren(el.header, el.banner, el.main, el.tabs, el.insights, el.onboarding, el.toast);
 
   renderHeader();
   renderBanner();
@@ -295,8 +356,15 @@ function renderHeader(): void {
     canDownload && h('button', { class: 'pill-btn', onclick: onDownload }, 'Get Gemini Nano'),
   );
 
-  const netPill = h('div', { class: `pill ${state.online ? 'pill-ok' : 'pill-off'}` },
-    h('span', { class: `dot ${state.online ? 'dot-online' : 'dot-offline'}` }), state.online ? 'Online' : 'Offline');
+  // The connectivity pill doubles as the offline-demo toggle (simulated airplane mode).
+  const netPill = h('button', {
+    class: `pill pill-toggle ${state.online ? 'pill-ok' : 'pill-off'}`,
+    'aria-pressed': String(state.simOffline),
+    title: state.simOffline ? 'Offline demo is on. Click to go back online.' : 'Click to simulate airplane mode (offline demo)',
+    onclick: () => void setSimulatedOffline(!state.simOffline),
+  },
+    h('span', { class: `dot ${state.online ? 'dot-online' : 'dot-offline'}` }),
+    state.simOffline ? 'Offline demo' : state.online ? 'Online' : 'Offline');
 
   const seg = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'AI routing' },
     ...(['auto', 'local', 'cloud'] as Routing[]).map((r) =>
@@ -304,7 +372,13 @@ function renderHeader(): void {
         role: 'radio', 'aria-checked': String(state.routing === r), class: state.routing === r ? 'is-on' : '',
         title: r === 'auto' ? 'Hybrid: on-device first, cloud for long docs or when no local model'
           : r === 'local' ? 'Never leave the device (Gemini Nano only)' : 'Always use the cloud model (with Privacy Shield)',
-        onclick: () => { state.routing = r; writePref(ROUTING_KEY, r); renderHeader(); renderRoute(); },
+        onclick: () => {
+          state.routing = r;
+          writePref(ROUTING_KEY, r);
+          if (state.user) saveSettings(fb.db, state.user.uid, { routing: r });
+          renderHeader();
+          renderRoute();
+        },
       }, r === 'auto' ? 'Auto' : r === 'local' ? 'Local' : 'Cloud')));
 
   const u = state.user;
@@ -322,6 +396,7 @@ function renderHeader(): void {
     h('div', { class: 'topbar-right' },
       netPill, devicePill, seg,
       h('button', { class: 'btn btn-ghost', onclick: () => { state.insightsOpen = true; renderInsights(); } }, chartIcon(), 'Insights'),
+      h('button', { class: 'btn btn-ghost help-btn', onclick: openOnboarding, 'aria-label': 'How Tandem Notes works', title: 'How it works' }, '?'),
       account),
   );
 }
