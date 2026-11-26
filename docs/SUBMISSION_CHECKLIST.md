@@ -1,26 +1,34 @@
-# #BuildHybridAI requirements checklist
+# #BuildHybridAI submission checklist
 
-| Requirement | Status | Where |
-|---|---|---|
-| Gen AI app using **Firebase AI Logic** | ✅ | `firebase/ai` imported and called at runtime: [src/firebase.ts](../src/firebase.ts) (`getAI`), [src/ai/engine.ts](../src/ai/engine.ts) (`getGenerativeModel`, `generateContent`, `generateContentStream`), [src/ai/device.ts](../src/ai/device.ts) (`initializeDeviceModel`) |
-| **Hybrid inference**: on-device when available, cloud fallback | ✅ | `InferenceMode.PREFER_ON_DEVICE` / `ONLY_ON_DEVICE` / `ONLY_IN_CLOUD` chosen in [src/ai/router.ts](../src/ai/router.ts); real source from `inferenceSource` |
-| Platform: **Web (Chrome)** with Gemini Nano | ✅ | Chrome Prompt API through the SDK's Chrome adapter. Select **Web** on Devpost |
-| **App Check** (required; debug tokens accepted) | ✅ | [src/firebase.ts](../src/firebase.ts): reCAPTCHA Enterprise, plus debug token through `VITE_APPCHECK_DEBUG_TOKEN`, plus limited-use tokens |
-| Other Firebase products (encouraged) | ✅ | Authentication (anonymous + Google), Firestore (notes + ledger + rules), Remote Config (6 params), Hosting |
-| Public **GitHub/GitLab** repo with all source, assets and instructions | ⏳ you | Push this folder. README has setup, run, deploy and value proposition |
-| **Open source license**, detectable in the About section | ✅ / ⏳ you | [LICENSE](../LICENSE) is the unmodified Apache-2.0 text, which GitHub detects automatically. Keep it at the repo root |
-| Text description: Firebase AI Logic usage, features, value proposition | ✅ | [docs/DEVPOST_SUBMISSION.md](DEVPOST_SUBMISSION.md) |
-| **Demo video** ≤ 3 min, public on YouTube, English, shows it running on the platform | ⏳ you | Script: [docs/DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md) |
-| Hosted URL for judging (strongly encouraged) | ⏳ you | `npm run deploy` (Firebase Hosting) |
-| Free of charge, English materials | ✅ | No paywall; all text in English |
-| New project built during the submission period | ✅ | No "existing app" section needed |
-| Google tools / Firebase agent skills (encouraged, optional) | optional | Mention that it was built with Claude Code if asked; the AI runs on Firebase AI Logic as required |
+✅ done in the repo · ⏳ needs you (accounts, recording, publishing)
 
-## Before you submit
-- [ ] Firebase project created; AI Logic (Gemini Developer API), Anonymous + Google Auth, Firestore and App Check are all enabled
-- [ ] `.env.local` filled in; `npm run dev` works; debug token registered
-- [ ] `firebase deploy` done (hosting, firestore rules, remote config); reCAPTCHA Enterprise key has the `*.web.app` domain
-- [ ] Tested on the hosted URL in Chrome with Gemini Nano **and** in a browser without it (cloud fallback)
-- [ ] Repo is public; the About section shows "Apache-2.0"; README links to the live app and the video
-- [ ] Video uploaded as Public on YouTube, ≤ 3:00, English or with English subtitles
-- [ ] Devpost: platform = Web; links to repo, video and live app; testing instructions pasted
+| # | Rule | Status | Satisfied by |
+|---|---|---|---|
+| 1 | AI runs through **Firebase AI Logic Hybrid Inference SDK** | ✅ | `firebase/ai` imported in [src/firebase.ts:26](../src/firebase.ts#L26), [src/ai/engine.ts:18](../src/ai/engine.ts#L18); `getAI` [src/firebase.ts:134](../src/firebase.ts#L134); `getGenerativeModel` [src/ai/engine.ts:90](../src/ai/engine.ts#L90) |
+| 1 | On-device when available (Gemini Nano, Web) | ✅ | `ONLY_ON_DEVICE` / `PREFER_ON_DEVICE` in [src/ai/router.ts](../src/ai/router.ts), [src/ai/fallback.ts](../src/ai/fallback.ts); `initializeDeviceModel` [src/ai/device.ts:50](../src/ai/device.ts#L50) |
+| 1 | Falls back to the cloud when it isn't | ✅ | SDK `PREFER_ON_DEVICE` fallback plus an explicit shielded cloud attempt: [src/ai/fallback.ts:49](../src/ai/fallback.ts#L49), [src/ai/engine.ts:152-220](../src/ai/engine.ts#L152-L220); tests [tests/engine.test.ts](../tests/engine.test.ts) |
+| 1 | Imported **and called at runtime** (not just the README) | ✅ | `generateContent` [src/ai/engine.ts:236](../src/ai/engine.ts#L236), `generateContentStream` [src/ai/engine.ts:245](../src/ai/engine.ts#L245), called from the UI in [src/main.ts](../src/main.ts) `execute()` |
+| 2 | **App Check** (debug tokens accepted) | ✅ / ⏳ | [src/firebase.ts:91-107](../src/firebase.ts#L91-L107); README "App Check debug token". ⏳ Register the app and enforce it in the console |
+| 2 | **Remote Config** with real value | ✅ | Kill-switch, threshold, model, prompt templates, shield: [remoteconfig.template.json](../remoteconfig.template.json), [src/firebase.ts:149-161](../src/firebase.ts#L149-L161) |
+| 2 | **Firestore** with real value | ✅ | Notes, settings and ledger with offline cache: [src/data/](../src/data); rules in [firestore.rules](../firestore.rules) |
+| 2 | **Authentication** with real value | ✅ | Anonymous → Google linking: [src/data/auth.ts](../src/data/auth.ts) |
+| 3 | Public GitHub/GitLab repo | ⏳ | https://github.com/shravyasaravanane/HybridAI. **Currently private**: Settings → General → Change visibility → Public |
+| 3 | OSI license, detectable in **About** | ✅ / ⏳ | [LICENSE](../LICENSE) is the unmodified Apache-2.0 text at the repo root, which GitHub detects automatically. ⏳ Confirm "Apache-2.0" shows in About once public |
+| 3 | All source, assets and run instructions | ✅ | `src/`, `public/`, `tests/`, config files; [README.md](../README.md) "Run it" |
+| 3 | No secrets committed | ✅ | `.env*` git-ignored; [.env.example](../.env.example) documents every variable |
+| 4 | Demo video ≤ 3 min, English, on the target platform, public YouTube | ⏳ | Script: [docs/DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md) |
+| 5 | Text description: AI Logic usage, features, value proposition | ✅ | [docs/DEVPOST_SUBMISSION.md](DEVPOST_SUBMISSION.md) |
+| 6 | Hosted, testable URL | ⏳ | `npm run deploy` → `https://<project>.web.app`; add it to the README and Devpost |
+| 6 | Free to use | ✅ | No paywall; anonymous sign-in; Apache-2.0 |
+| 7 | Multi-platform (optional) | ➖ | Single platform (Web). Portable policy layer and extension path: README "Extending to Android and iOS" |
+| – | Tests for routing and fallback | ✅ | `npm test`: 41 tests in [tests/](../tests) |
+| – | Pre-existing app disclosure | ✅ | Not needed: built during the submission period (stated in the Devpost text) |
+
+## Final steps, in order
+1. [ ] Firebase project: AI Logic (Gemini Developer API), Anonymous + Google Auth, Firestore, App Check (reCAPTCHA Enterprise + enforce)
+2. [ ] `.env.local` → `npm run dev` → register the debug token → test with Gemini Nano **and** without it (cloud fallback)
+3. [ ] `npm run deploy` (hosting, rules, Remote Config) → test the live URL in Chrome
+4. [ ] Measure latency with Compare/Insights → fill in the README "Latency comparison" table
+5. [ ] Make the repo **public**; check About shows Apache-2.0; replace the live-app and video placeholders in the README
+6. [ ] Record and upload the video (Public, ≤ 3:00, English captions)
+7. [ ] Devpost: platform **Web**, paste the description, add links to the repo, live app and video
