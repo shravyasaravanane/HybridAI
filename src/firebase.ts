@@ -32,17 +32,16 @@ declare global {
   var FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
 }
 
-const env = import.meta.env;
 
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
-  appId: env.VITE_FIREBASE_APP_ID as string | undefined,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
   // Optional; only used if Google Analytics is added later.
-  measurementId: (env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined) || undefined,
+  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined) || undefined,
 };
 
 /** True when the minimum config needed to talk to Firebase is present. */
@@ -95,13 +94,17 @@ export function initFirebase(): FirebaseServices {
   // The debug token (must be set before initializeAppCheck) is honoured only in
   // `npm run dev`, so a token sitting in .env can't leak into the deployed build.
   // VITE_APPCHECK_DEBUG_IN_PROD=true is an explicit opt-in for a judging-only build.
-  const debugToken = (env.VITE_APPCHECK_DEBUG_TOKEN as string | undefined)?.trim();
-  if (debugToken && (env.DEV || env.VITE_APPCHECK_DEBUG_IN_PROD === 'true')) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken === 'true' ? true : debugToken;
+  // Each import.meta.env.X is substituted on its own at build time. The token is
+  // read inside this branch, which folds to `false` in production builds, so the
+  // minifier drops it and the token never appears in the deployed JavaScript.
+  // (Don't alias `import.meta.env` to a variable: that inlines every VITE_ value.)
+  if (import.meta.env.DEV || import.meta.env.VITE_APPCHECK_DEBUG_IN_PROD === 'true') {
+    const debugToken = (import.meta.env.VITE_APPCHECK_DEBUG_TOKEN as string | undefined)?.trim();
+    if (debugToken) self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken === 'true' ? true : debugToken;
   }
   // Production attestation: reCAPTCHA Enterprise (recommended by the AI Logic docs) or reCAPTCHA v3.
-  const enterpriseKey = (env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY as string | undefined)?.trim();
-  const v3Key = (env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined)?.trim();
+  const enterpriseKey = (import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY as string | undefined)?.trim();
+  const v3Key = (import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined)?.trim();
   const provider = enterpriseKey
     ? new ReCaptchaEnterpriseProvider(enterpriseKey)
     : v3Key
@@ -124,7 +127,7 @@ export function initFirebase(): FirebaseServices {
   });
 
   // Optional: local Auth + Firestore emulators (`firebase emulators:start`). AI Logic always uses the real backend.
-  if (env.VITE_USE_EMULATORS === 'true') {
+  if (import.meta.env.VITE_USE_EMULATORS === 'true') {
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
     connectFirestoreEmulator(db, '127.0.0.1', 8080);
   }
@@ -134,7 +137,7 @@ export function initFirebase(): FirebaseServices {
   // 5 minutes keeps kill-switch / threshold changes responsive for a small app.
   // `?rcfresh` in the URL forces an immediate fetch (handy for demos right after publishing).
   const forceFresh = new URLSearchParams(location.search).has('rcfresh');
-  remoteConfig.settings.minimumFetchIntervalMillis = forceFresh ? 0 : env.DEV ? 60_000 : 5 * 60 * 1000;
+  remoteConfig.settings.minimumFetchIntervalMillis = forceFresh ? 0 : import.meta.env.DEV ? 60_000 : 5 * 60 * 1000;
   remoteConfig.settings.fetchTimeoutMillis = 8_000;
   remoteConfig.defaultConfig = { ...RC_DEFAULTS };
 

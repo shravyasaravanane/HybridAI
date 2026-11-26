@@ -42,8 +42,8 @@ All AI goes through the Firebase AI Logic Web SDK (`firebase/ai`), imported and 
 | What | File:line |
 |---|---|
 | `import { getAI, GoogleAIBackend } from 'firebase/ai'` | [src/firebase.ts:27](src/firebase.ts#L27) |
-| `initializeAppCheck(...)`: required by AI Logic | [src/firebase.ts:116](src/firebase.ts#L116) |
-| `getAI(app, { backend: new GoogleAIBackend(), useLimitedUseAppCheckTokens: true })` | [src/firebase.ts:143](src/firebase.ts#L143) |
+| `initializeAppCheck(...)`: required by AI Logic | [src/firebase.ts:119](src/firebase.ts#L119) |
+| `getAI(app, { backend: new GoogleAIBackend(), useLimitedUseAppCheckTokens: true })` | [src/firebase.ts:146](src/firebase.ts#L146) |
 | `getGenerativeModel(ai, { mode, onDeviceParams, inCloudParams })` | [src/ai/engine.ts:90](src/ai/engine.ts#L90), params built at [src/ai/engine.ts:99-107](src/ai/engine.ts#L99-L107) |
 | Structured output: on-device `responseConstraint` + cloud `responseJsonSchema` | [src/ai/engine.ts:101-105](src/ai/engine.ts#L101-L105) |
 | `generateContent()` for JSON tasks + `response.inferenceSource` | [src/ai/engine.ts:236-238](src/ai/engine.ts#L236-L238) |
@@ -62,8 +62,8 @@ All AI goes through the Firebase AI Logic Web SDK (`firebase/ai`), imported and 
 
 | Product | Purpose | Where |
 |---|---|---|
-| **App Check** (required) | Protects the Gemini API: reCAPTCHA Enterprise in production, debug token for development. **Limited-use tokens** for replay protection | [src/firebase.ts:94-116](src/firebase.ts#L94-L116) |
-| **Remote Config** | Change behaviour without redeploying: `cloud_enabled` (**kill-switch**), `on_device_max_chars` (routing threshold), `cloud_model` (model selection), `prompt_templates` (**prompt templates**), `privacy_shield_enabled`, `shield_max_chunks`, `default_routing`, `announcement` | [remoteconfig.template.json](remoteconfig.template.json), [src/firebase.ts:158-170](src/firebase.ts#L158-L170) |
+| **App Check** (required) | Protects the Gemini API: reCAPTCHA Enterprise in production, debug token for development. **Limited-use tokens** for replay protection | [src/firebase.ts:93-119](src/firebase.ts#L93-L119) |
+| **Remote Config** | Change behaviour without redeploying: `cloud_enabled` (**kill-switch**), `on_device_max_chars` (routing threshold), `cloud_model` (model selection), `prompt_templates` (**prompt templates**), `privacy_shield_enabled`, `shield_max_chunks`, `default_routing`, `announcement` | [remoteconfig.template.json](remoteconfig.template.json), [src/firebase.ts:161-173](src/firebase.ts#L161-L173) |
 | **Authentication** | Instant anonymous sign-in, upgradeable to Google with `linkWithPopup` (same uid, so notes follow you to other devices) | [src/data/auth.ts](src/data/auth.ts) |
 | **Cloud Firestore** | Notes sync (persistent offline cache), synced settings, and an inference ledger that stores **metadata only**. Device-only notes are never written here | [src/data/notes.ts](src/data/notes.ts), [src/data/settings.ts](src/data/settings.ts), [src/data/ledger.ts](src/data/ledger.ts), [firestore.rules](firestore.rules) |
 | **Hosting** | Serves the offline-capable PWA | [firebase.json](firebase.json) |
