@@ -6,6 +6,7 @@ import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
+  ReCaptchaV3Provider,
   CustomProvider,
   type AppCheck,
 } from 'firebase/app-check';
@@ -40,6 +41,8 @@ export const firebaseConfig = {
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
   appId: env.VITE_FIREBASE_APP_ID as string | undefined,
+  // Optional; only used if Google Analytics is added later.
+  measurementId: (env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined) || undefined,
 };
 
 /** True when the minimum config needed to talk to Firebase is present. */
@@ -89,21 +92,27 @@ export function initFirebase(): FirebaseServices {
   const app = initializeApp(firebaseConfig);
 
   // --- App Check (required by Firebase AI Logic) -------------------------
-  // Debug tokens are accepted for hackathon judging; production uses reCAPTCHA Enterprise.
+  // The debug token (must be set before initializeAppCheck) is honoured only in
+  // `npm run dev`, so a token sitting in .env can't leak into the deployed build.
+  // VITE_APPCHECK_DEBUG_IN_PROD=true is an explicit opt-in for a judging-only build.
   const debugToken = (env.VITE_APPCHECK_DEBUG_TOKEN as string | undefined)?.trim();
-  if (debugToken) {
+  if (debugToken && (env.DEV || env.VITE_APPCHECK_DEBUG_IN_PROD === 'true')) {
     self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken === 'true' ? true : debugToken;
   }
-  const siteKey = (env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY as string | undefined)?.trim();
-  const provider = siteKey
-    ? new ReCaptchaEnterpriseProvider(siteKey)
-    : // With a debug token set, the SDK bypasses the provider entirely.
-      new CustomProvider({
-        getToken: () =>
-          Promise.reject(
-            new Error('No reCAPTCHA Enterprise site key configured; set VITE_APPCHECK_DEBUG_TOKEN for local use.'),
-          ),
-      });
+  // Production attestation: reCAPTCHA Enterprise (recommended by the AI Logic docs) or reCAPTCHA v3.
+  const enterpriseKey = (env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY as string | undefined)?.trim();
+  const v3Key = (env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined)?.trim();
+  const provider = enterpriseKey
+    ? new ReCaptchaEnterpriseProvider(enterpriseKey)
+    : v3Key
+      ? new ReCaptchaV3Provider(v3Key)
+      : // With a debug token set, the SDK bypasses the provider entirely.
+        new CustomProvider({
+          getToken: () =>
+            Promise.reject(
+              new Error('No reCAPTCHA site key configured; set VITE_APPCHECK_DEBUG_TOKEN for local use.'),
+            ),
+        });
   const appCheck = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
 
   // --- Auth ---------------------------------------------------------------

@@ -41,9 +41,9 @@ All AI goes through the Firebase AI Logic Web SDK (`firebase/ai`), imported and 
 
 | What | File:line |
 |---|---|
-| `import { getAI, GoogleAIBackend } from 'firebase/ai'` | [src/firebase.ts:26](src/firebase.ts#L26) |
-| `initializeAppCheck(...)`: required by AI Logic | [src/firebase.ts:107](src/firebase.ts#L107) |
-| `getAI(app, { backend: new GoogleAIBackend(), useLimitedUseAppCheckTokens: true })` | [src/firebase.ts:134](src/firebase.ts#L134) |
+| `import { getAI, GoogleAIBackend } from 'firebase/ai'` | [src/firebase.ts:27](src/firebase.ts#L27) |
+| `initializeAppCheck(...)`: required by AI Logic | [src/firebase.ts:116](src/firebase.ts#L116) |
+| `getAI(app, { backend: new GoogleAIBackend(), useLimitedUseAppCheckTokens: true })` | [src/firebase.ts:143](src/firebase.ts#L143) |
 | `getGenerativeModel(ai, { mode, onDeviceParams, inCloudParams })` | [src/ai/engine.ts:90](src/ai/engine.ts#L90), params built at [src/ai/engine.ts:99-107](src/ai/engine.ts#L99-L107) |
 | Structured output: on-device `responseConstraint` + cloud `responseJsonSchema` | [src/ai/engine.ts:101-105](src/ai/engine.ts#L101-L105) |
 | `generateContent()` for JSON tasks + `response.inferenceSource` | [src/ai/engine.ts:236-238](src/ai/engine.ts#L236-L238) |
@@ -62,8 +62,8 @@ All AI goes through the Firebase AI Logic Web SDK (`firebase/ai`), imported and 
 
 | Product | Purpose | Where |
 |---|---|---|
-| **App Check** (required) | Protects the Gemini API: reCAPTCHA Enterprise in production, debug token for development. **Limited-use tokens** for replay protection | [src/firebase.ts:91-107](src/firebase.ts#L91-L107) |
-| **Remote Config** | Change behaviour without redeploying: `cloud_enabled` (**kill-switch**), `on_device_max_chars` (routing threshold), `cloud_model` (model selection), `prompt_templates` (**prompt templates**), `privacy_shield_enabled`, `shield_max_chunks`, `default_routing`, `announcement` | [remoteconfig.template.json](remoteconfig.template.json), [src/firebase.ts:149-161](src/firebase.ts#L149-L161) |
+| **App Check** (required) | Protects the Gemini API: reCAPTCHA Enterprise in production, debug token for development. **Limited-use tokens** for replay protection | [src/firebase.ts:94-116](src/firebase.ts#L94-L116) |
+| **Remote Config** | Change behaviour without redeploying: `cloud_enabled` (**kill-switch**), `on_device_max_chars` (routing threshold), `cloud_model` (model selection), `prompt_templates` (**prompt templates**), `privacy_shield_enabled`, `shield_max_chunks`, `default_routing`, `announcement` | [remoteconfig.template.json](remoteconfig.template.json), [src/firebase.ts:158-170](src/firebase.ts#L158-L170) |
 | **Authentication** | Instant anonymous sign-in, upgradeable to Google with `linkWithPopup` (same uid, so notes follow you to other devices) | [src/data/auth.ts](src/data/auth.ts) |
 | **Cloud Firestore** | Notes sync (persistent offline cache), synced settings, and an inference ledger that stores **metadata only**. Device-only notes are never written here | [src/data/notes.ts](src/data/notes.ts), [src/data/settings.ts](src/data/settings.ts), [src/data/ledger.ts](src/data/ledger.ts), [firestore.rules](firestore.rules) |
 | **Hosting** | Serves the offline-capable PWA | [firebase.json](firebase.json) |
@@ -104,7 +104,7 @@ flowchart LR
 3. **Project settings → Your apps → Web app**: copy the config.
 4. **Authentication → Sign-in method**: enable **Anonymous** and **Google**.
 5. **Firestore Database**: create it in production mode. The rules are deployed below.
-6. **App Check → Apps**: register the web app with **reCAPTCHA Enterprise** (key for your hosting domain). Then **App Check → APIs → Firebase AI Logic → Enforce**. *(AI Logic enforcement became automatic in November 2026.)*
+6. **App Check → Apps**: register the web app with **reCAPTCHA Enterprise** (recommended) or **reCAPTCHA v3**, using a key that allows your hosting domain (`<project>.web.app`). Put the site key in `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` or `VITE_RECAPTCHA_V3_SITE_KEY`. Then **App Check → APIs → Firebase AI Logic → Enforce**. *(AI Logic enforcement became automatic in November 2026.)*
 
 ### 2. Configure and run locally
 
@@ -120,7 +120,7 @@ npm run dev                   # http://localhost:5173
 2. DevTools console prints `Firebase App Check debug token: <uuid>`.
 3. Firebase console → **App Check → Apps → ⋮ → Manage debug tokens → Add**, and paste it.
 4. Put that same uuid in `VITE_APPCHECK_DEBUG_TOKEN` so it stays stable across browsers.
-5. Never commit it. `.env*` is git-ignored. Remove the debug token from production builds.
+5. Never commit it. `.env*` is git-ignored. The debug token is only used by `npm run dev`; production builds ignore it unless you set `VITE_APPCHECK_DEBUG_IN_PROD=true` (judging-only, revoke afterwards).
 
 ### 4. Enable Gemini Nano in Chrome
 1. Open `chrome://flags/#prompt-api-for-gemini-nano-multimodal-input`, set it to **Enabled**, and restart Chrome.
@@ -136,7 +136,7 @@ npm run preview      # production build locally (service worker on: try real air
 
 npm i -g firebase-tools && firebase login
 cp .firebaserc.example .firebaserc        # set your project id
-# .env.production.local: VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=..., VITE_APPCHECK_DEBUG_TOKEN= (empty)
+# production uses the reCAPTCHA key from .env.local; the debug token is ignored in builds
 npm run deploy       # hosting + firestore.rules + remoteconfig.template.json
 ```
 

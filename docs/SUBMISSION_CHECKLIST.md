@@ -4,12 +4,12 @@
 
 | # | Rule | Status | Satisfied by |
 |---|---|---|---|
-| 1 | AI runs through **Firebase AI Logic Hybrid Inference SDK** | ✅ | `firebase/ai` imported in [src/firebase.ts:26](../src/firebase.ts#L26), [src/ai/engine.ts:18](../src/ai/engine.ts#L18); `getAI` [src/firebase.ts:134](../src/firebase.ts#L134); `getGenerativeModel` [src/ai/engine.ts:90](../src/ai/engine.ts#L90) |
+| 1 | AI runs through **Firebase AI Logic Hybrid Inference SDK** | ✅ | `firebase/ai` imported in [src/firebase.ts:27](../src/firebase.ts#L27), [src/ai/engine.ts:18](../src/ai/engine.ts#L18); `getAI` [src/firebase.ts:143](../src/firebase.ts#L143); `getGenerativeModel` [src/ai/engine.ts:90](../src/ai/engine.ts#L90) |
 | 1 | On-device when available (Gemini Nano, Web) | ✅ | `ONLY_ON_DEVICE` / `PREFER_ON_DEVICE` in [src/ai/router.ts](../src/ai/router.ts), [src/ai/fallback.ts](../src/ai/fallback.ts); `initializeDeviceModel` [src/ai/device.ts:50](../src/ai/device.ts#L50) |
 | 1 | Falls back to the cloud when it isn't | ✅ | SDK `PREFER_ON_DEVICE` fallback plus an explicit shielded cloud attempt: [src/ai/fallback.ts:49](../src/ai/fallback.ts#L49), [src/ai/engine.ts:152-220](../src/ai/engine.ts#L152-L220); tests [tests/engine.test.ts](../tests/engine.test.ts) |
 | 1 | Imported **and called at runtime** (not just the README) | ✅ | `generateContent` [src/ai/engine.ts:236](../src/ai/engine.ts#L236), `generateContentStream` [src/ai/engine.ts:245](../src/ai/engine.ts#L245), called from the UI in [src/main.ts](../src/main.ts) `execute()` |
-| 2 | **App Check** (debug tokens accepted) | ✅ / ⏳ | [src/firebase.ts:91-107](../src/firebase.ts#L91-L107); README "App Check debug token". ⏳ Register the app and enforce it in the console |
-| 2 | **Remote Config** with real value | ✅ | Kill-switch, threshold, model, prompt templates, shield: [remoteconfig.template.json](../remoteconfig.template.json), [src/firebase.ts:149-161](../src/firebase.ts#L149-L161) |
+| 2 | **App Check** (debug tokens accepted) | ✅ / ⏳ | [src/firebase.ts:94-116](../src/firebase.ts#L94-L116); README "App Check debug token". ⏳ Register the app and enforce it in the console |
+| 2 | **Remote Config** with real value | ✅ | Kill-switch, threshold, model, prompt templates, shield: [remoteconfig.template.json](../remoteconfig.template.json), [src/firebase.ts:158-170](../src/firebase.ts#L158-L170) |
 | 2 | **Firestore** with real value | ✅ | Notes, settings and ledger with offline cache: [src/data/](../src/data); rules in [firestore.rules](../firestore.rules) |
 | 2 | **Authentication** with real value | ✅ | Anonymous → Google linking: [src/data/auth.ts](../src/data/auth.ts) |
 | 3 | Public GitHub/GitLab repo | ⏳ | https://github.com/shravyasaravanane/HybridAI. **Currently private**: Settings → General → Change visibility → Public |
