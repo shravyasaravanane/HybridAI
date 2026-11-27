@@ -3,7 +3,7 @@
 **On-device first, cloud when it counts.**
 A notes app that runs AI on your device with Gemini Nano when it can, and falls back to the cloud only when it needs to. Built with Firebase AI Logic Hybrid Inference for #BuildHybridAI.
 
-- **Live app:** [YOUR_HOSTING_URL, e.g. https://hybridai-bfc6d.web.app]
+- - **Live app:** https://hybridai-bfc6d.web.app
 - **Demo video (3 min):** [YOUR_YOUTUBE_LINK]
 - **License:** Apache-2.0
 
